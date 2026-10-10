@@ -67,7 +67,7 @@ Whether you're managing study sessions, project tasks, or personal errands, this
 >
 > **Settings tab** — View statistics and manage data.
 
-_(Add your screenshots here — see [`docs/screenshots`](docs/) for recommendations.)_
+
 
 ---
 
