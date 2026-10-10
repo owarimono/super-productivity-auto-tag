@@ -62,10 +62,13 @@ Whether you're managing study sessions, project tasks, or personal errands, this
 ## 📸 Screenshots
 
 > **Rules tab** — Manage your keyword-to-tag rules with a clean, native UI.
->
+><img width="1838" height="927" alt="image" src="https://github.com/user-attachments/assets/af0fe135-6804-48de-bad6-6e097efa6dcf" />
+
 > **Test tab** — Preview how tags would apply to any task title.
->
+><img width="1837" height="938" alt="image" src="https://github.com/user-attachments/assets/1a8379e4-2451-4f38-bfa8-c7ab77fb4dcc" />
+
 > **Settings tab** — View statistics and manage data.
+<img width="1836" height="932" alt="image" src="https://github.com/user-attachments/assets/c827961e-46c9-45ef-b6d8-bf86203ef949" />
 
 
 
