@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auto Tag Manager</title>
+  <style>
+    /* ============================================================
+       Design tokens — derived from host theme
+       All surfaces are computed from --bg and --text-color so the
+       palette always matches whatever theme the user has set.
+       ============================================================ */
+    :root {
+      /* --- Host-driven base palette --- */
+      --surface:        var(--bg, #fef7ff);
+      --on-surface:     var(--text-color, #1d1b20);
+      --on-surface-var: var(--text-color-muted, #49454f);
+      --outline-base:   var(--divider-color, #79747e);
+      --primary:        var(--c-primary, #6750a4);
+      --danger:         var(--c-warn, var(--c-error, #dc2626));
+      --on-primary:     #ffffff;
+
+      /* --- Derived surfaces (auto light/dark) --- */
+      --surface-low:  color-mix(in srgb, var(--surface) 96%, var(--on-surface) 4%);
+      --surface-mid:  color-mix(in srgb, var(--surface) 90%, var(--on-surface) 10%);
+      --surface-high: color-mix(in srgb, var(--surface) 82%, var(--on-surface) 18%);
+
+      --outline-var:  color-mix(in srgb, var(--outline-base) 45%, var(--surface) 55%);
+      --outline:      var(--outline-base);
+
+      --primary-container:    color-mix(in srgb, var(--primary) 18%, var(--surface) 82%);
+      --on-primary-container: color-mix(in srgb, var(--primary) 82%, var(--on-surface) 18%);
+
+      /* --- Semantic feedback --- */
+      --success-bg: color-mix(in srgb, #2e7d32 18%, var(--surface) 82%);
+      --success-fg: color-mix(in srgb, #2e7d32 78%, var(--on-surface) 22%);
+      --danger-bg:  color-mix(in srgb, var(--danger) 18%, var(--surface) 82%);
+      --danger-fg:  color-mix(in srgb, var(--danger) 78%, var(--on-surface) 22%);
+
+      /* --- State layers --- */
+      --state-hover:   color-mix(in srgb, var(--on-surface) 8%, transparent);
+      --state-pressed: color-mix(in srgb, var(--on-surface) 14%, transparent);
+
+      /* --- Shadow (works on both themes) --- */
+      --shadow-1: 0 1px 2px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.05);
+      --shadow-2: 0 2px 6px rgba(0,0,0,.10), 0 1px 2px rgba(0,0,0,.06);
+      --shadow-3: 0 12px 32px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.10);
+
+      /* --- Shape --- */
+      --r-xs: 8px;
+      --r-sm: 12px;
+      --r-md: 16px;
+      --r-lg: 20px;
+      --r-xl: 24px;
+      --r-2xl: 28px;
+      --r-pill: 999px;
+
+      /* --- Motion --- */
+      --ease:       cubic-bezier(0.2, 0, 0, 1);
+      --ease-emph:  cubic-bezier(0.05, 0.7, 0.1, 1);
+      --dur-short:  160ms;
+      --dur-med:    240ms;
+      --dur-long:   320ms;
+
+      /* --- Type --- */
+      --font: var(--font-family, -apple-system, BlinkMacSystemFont,
+              "Segoe UI", Roboto, "Helvetica Neue", system-ui, sans-serif);
+      --font-mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      font-size: 14.5px;
+      line-height: 1.55;
+      background: var(--surface);
+      color: var(--on-surface);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    button, input { font-family: inherit; }
+
+    /* ============================================================
+       App Bar
+       ============================================================ */
+    .app-bar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--surface);
+      border-bottom: 1px solid var(--outline-var);
+      transition: box-shadow var(--dur-med) var(--ease);
+    }
+
+    .app-bar.scrolled { box-shadow: var(--shadow-1); }
+
+    .app-bar-inner {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      border-radius: var(--r-sm);
+    }
+
+    .brand-icon svg { display: block; }
+
+    .brand-title {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--on-surface);
+      margin: 0;
+    }
+
+    /* --- Tabs --- */
+    .tabs {
+      display: inline-flex;
+      padding: 4px;
+      gap: 2px;
+      background: var(--surface-mid);
+      border-radius: var(--r-pill);
+    }
+
+    .tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 18px;
+      border: none;
+      background: transparent;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--on-surface-var);
+      border-radius: var(--r-pill);
+      cursor: pointer;
+      transition: background var(--dur-short) var(--ease),
+                  color var(--dur-short) var(--ease);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tab:hover { background: var(--state-hover); color: var(--on-surface); }
+
+    .tab.active {
+      background: var(--surface);
+      color: var(--on-surface);
+      box-shadow: var(--shadow-1);
+    }
+
+    .tab svg { display: block; }
+    .tab-label { display: inline; }
+
+    @media (max-width: 560px) {
+      .tab-label { display: none; }
+      .tab { padding: 9px 12px; }
+    }
+
+    /* ============================================================
+       Content
+       ============================================================ */
+    .content {
+      height: calc(100vh - 77px);
+      overflow-y: auto;
+      padding: 24px;
+      scroll-behavior: smooth;
+    }
+
+    .content::-webkit-scrollbar { width: 10px; }
+    .content::-webkit-scrollbar-track { background: transparent; }
+    .content::-webkit-scrollbar-thumb {
+      background: var(--outline-var);
+      border-radius: var(--r-pill);
+      border: 3px solid var(--surface);
+    }
+
+    .container { max-width: 780px; margin: 0 auto; }
+
+    .pane { display: none; }
+    .pane.active { display: block; animation: pane-in var(--dur-long) var(--ease-emph); }
+
+    @keyframes pane-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ============================================================
+       Cards
+       ============================================================ */
+    .card {
+      background: var(--surface-low);
+      border: 1px solid var(--outline-var);
+      border-radius: var(--r-lg);
+      padding: 22px;
+      margin-bottom: 18px;
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 16px;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      color: var(--on-surface);
+    }
+
+    .card-title small {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--on-surface-var);
+      background: var(--surface-mid);
+      padding: 3px 10px;
+      border-radius: var(--r-pill);
+    }
+
+    /* ============================================================
+       Form
+       ============================================================ */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-grid .full { grid-column: 1 / -1; }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--on-surface-var);
+      padding-left: 4px;
+    }
+
+    input[type="text"], input[type="search"] {
+      width: 100%;
+      height: 46px;
+      padding: 0 16px;
+      font-size: 14.5px;
+      color: var(--on-surface);
+      background: var(--surface);
+      border: 1px solid var(--outline-var);
+      border-radius: var(--r-sm);
+      outline: none;
+      transition: border-color var(--dur-short) var(--ease),
+                  box-shadow var(--dur-short) var(--ease);
+    }
+
+    input[type="text"]:hover, input[type="search"]:hover {
+      border-color: var(--outline);
+    }
+
+    input[type="text"]:focus, input[type="search"]:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+    }
+
+    input::placeholder { color: var(--on-surface-var); opacity: 0.65; }
+
+    /* ============================================================
+       Buttons
+       ============================================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 46px;
+      padding: 0 22px;
+      font-size: 14.5px;
+      font-weight: 500;
+      color: var(--on-primary);
+      background: var(--primary);
+      border: none;
+      border-radius: var(--r-pill);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: box-shadow var(--dur-short) var(--ease),
+                  filter var(--dur-short) var(--ease);
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .btn:hover  { filter: brightness(1.08); box-shadow: var(--shadow-1); }
+    .btn:active { filter: brightness(0.94); }
+
+    .btn.outline {
+      background: transparent;
+      color: var(--on-surface);
+      border: 1px solid var(--outline);
+    }
+    .btn.outline:hover { background: var(--state-hover); filter: none; }
+
+    .btn.text {
+      background: transparent;
+      color: var(--primary);
+      padding: 0 14px;
+    }
+    .btn.text:hover { background: var(--state-hover); filter: none; }
+
+    .btn.danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    .btn.danger:hover { filter: brightness(1.08); }
+
+    .btn.icon {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border-radius: var(--r-pill);
+      background: transparent;
+      color: var(--on-surface-var);
+    }
+    .btn.icon:hover {
+      background: var(--state-hover);
+      color: var(--on-surface);
+      filter: none;
+      box-shadow: none;
+    }
+    .btn.icon svg { display: block; }
+
+    /* ============================================================
+       Ripple
+       ============================================================ */
+    .ripple { position: relative; overflow: hidden; }
+    .ripple-effect {
+      position: absolute;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.25;
+      transform: scale(0);
+      animation: ripple-anim 650ms var(--ease);
+      pointer-events: none;
+    }
+    @keyframes ripple-anim {
+      to { transform: scale(2.5); opacity: 0; }
+    }
+
+    /* ============================================================
+       Rules List
+       ============================================================ */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .search-wrap .search-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--on-surface-var);
+      pointer-events: none;
+    }
+
+    .search-wrap input { padding-left: 46px; }
+
+    .rules-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .rule {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 18px;
+      background: var(--surface);
+      border: 1px solid var(--outline-var);
+      border-radius: var(--r-md);
+      transition: border-color var(--dur-short) var(--ease),
+                  box-shadow var(--dur-short) var(--ease);
+      animation: rule-in var(--dur-med) var(--ease-emph);
+    }
+
+    @keyframes rule-in {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .rule:hover {
+      border-color: color-mix(in srgb, var(--primary) 45%, var(--outline-var));
+      box-shadow: var(--shadow-1);
+    }
+
+    .rule.disabled { opacity: 0.55; }
+
+    .rule-body { flex: 1; min-width: 0; }
+
+    .rule-keyword {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--primary);
+      margin-bottom: 6px;
+      word-break: break-all;
+      font-weight: 500;
+    }
+
+    .rule-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--surface-mid);
+      color: var(--on-surface);
+      border-radius: var(--r-pill);
+    }
+
+    .tag .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--outline);
+    }
+
+    .tag.ok   .dot { background: var(--success-fg); }
+    .tag.miss .dot { background: var(--danger-fg); }
+
+    .rule-stats {
+      font-size: 12px;
+      color: var(--on-surface-var);
+      margin-top: 6px;
+    }
+
+    .rule-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transform: translateX(4px);
+      transition: opacity var(--dur-short) var(--ease),
+                  transform var(--dur-short) var(--ease);
+    }
+
+    .rule:hover .rule-actions,
+    .rule:focus-within .rule-actions {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    /* ============================================================
+       Switch
+       ============================================================ */
+    .switch {
+      position: relative;
+      flex-shrink: 0;
+      width: 44px;
+      height: 26px;
+      background: var(--surface-high);
+      border: 2px solid var(--outline);
+      border-radius: var(--r-pill);
+      cursor: pointer;
+      transition: background var(--dur-med) var(--ease),
+                  border-color var(--dur-med) var(--ease);
+      padding: 0;
+    }
+
+    .switch::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 4px;
+      width: 14px;
+      height: 14px;
+      background: var(--outline);
+      border-radius: 50%;
+      transform: translateY(-50%);
+      transition: transform var(--dur-med) var(--ease-emph),
+                  background var(--dur-med) var(--ease),
+                  width var(--dur-med) var(--ease),
+                  height var(--dur-med) var(--ease);
+    }
+
+    .switch.on {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .switch.on::after {
+      width: 18px;
+      height: 18px;
+      background: var(--on-primary);
+      transform: translate(18px, -50%);
+    }
+
+    /* ============================================================
+       Edit Form
+       ============================================================ */
+    .edit-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .edit-form .btn-row {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .edit-form input { height: 40px; font-size: 13.5px; }
+
+    .edit-form .btn {
+      height: 36px;
+      padding: 0 16px;
+      font-size: 13.5px;
+    }
+
+    /* ============================================================
+       Empty State
+       ============================================================ */
+    .empty {
+      padding: 56px 24px;
+      text-align: center;
+      color: var(--on-surface-var);
+    }
+
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 16px;
+      display: grid;
+      place-items: center;
+      background: var(--surface-mid);
+      color: var(--on-surface-var);
+      border-radius: var(--r-lg);
+    }
+
+    .empty-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--on-surface);
+      margin-bottom: 6px;
+    }
+
+    .empty-desc { font-size: 13.5px; }
+
+    /* ============================================================
+       Test Pane
+       ============================================================ */
+    .test-result {
+      margin-top: 18px;
+      padding: 18px;
+      background: var(--surface);
+      border: 1px dashed var(--outline-var);
+      border-radius: var(--r-md);
+    }
+
+    .test-hint {
+      color: var(--on-surface-var);
+      font-size: 13.5px;
+      text-align: center;
+      padding: 8px 0;
+    }
+
+    .test-match {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--outline-var);
+    }
+
+    .test-match:last-of-type { border-bottom: none; }
+
+    .test-match-kw {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      color: var(--primary);
+      font-weight: 500;
+    }
+
+    .test-arrow { color: var(--on-surface-var); margin: 0 2px; }
+
+    /* ============================================================
+       Stats
+       ============================================================ */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .stat {
+      padding: 20px 14px;
+      background: var(--surface);
+      border: 1px solid var(--outline-var);
+      border-radius: var(--r-md);
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+
+    .stat-label {
+      font-size: 12.5px;
+      color: var(--on-surface-var);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    /* ============================================================
+       Snackbar
+       ============================================================ */
+    .snackbar {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translate(-50%, 80px);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 22px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--on-surface);
+      background: var(--surface-high);
+      border: 1px solid var(--outline-var);
+      border-radius: var(--r-pill);
+      box-shadow: var(--shadow-3);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform var(--dur-long) var(--ease-emph),
+                  opacity var(--dur-med) var(--ease);
+      z-index: 100;
+      max-width: calc(100vw - 48px);
+    }
+
+    .snackbar.show {
+      transform: translate(-50%, 0);
+      opacity: 1;
+    }
+
+    .snackbar .snack-icon {
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .snackbar.success .snack-icon {
+      background: var(--success-bg);
+      color: var(--success-fg);
+    }
+    .snackbar.error .snack-icon {
+      background: var(--danger-bg);
+      color: var(--danger-fg);
+    }
+
+    /* ============================================================
+       Dialog
+       ============================================================ */
+    .scrim {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: grid;
+      place-items: center;
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--dur-med) var(--ease);
+      padding: 24px;
+    }
+
+    .scrim.show { opacity: 1; pointer-events: auto; }
+
+    .dialog {
+      background: var(--surface-high);
+      border-radius: var(--r-2xl);
+      padding: 28px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: var(--shadow-3);
+      transform: scale(0.92);
+      transition: transform var(--dur-long) var(--ease-emph);
+    }
+
+    .scrim.show .dialog { transform: scale(1); }
+
+    .dialog-icon {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 16px;
+      background: var(--danger-bg);
+      color: var(--danger-fg);
+      border-radius: 50%;
+    }
+
+    .dialog-title {
+      font-size: 18px;
+      font-weight: 600;
+      text-align: center;
+      margin: 0 0 8px;
+      color: var(--on-surface);
+    }
+
+    .dialog-text {
+      font-size: 14px;
+      text-align: center;
+      color: var(--on-surface-var);
+      margin: 0 0 24px;
+      line-height: 1.5;
+    }
+
+    .dialog-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    /* ============================================================
+       Helpers
+       ============================================================ */
+    .row-flex {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .hint {
+      font-size: 12.5px;
+      color: var(--on-surface-var);
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+
+    .hint kbd {
+      display: inline-block;
+      padding: 1px 7px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      background: var(--surface-mid);
+      color: var(--on-surface);
+      border-radius: 6px;
+      border: 1px solid var(--outline-var);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================
+       App Bar
+       ============================================================ -->
+  <header class="app-bar" id="app-bar">
+    <div class="app-bar-inner">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+            <line x1="7" y1="7" x2="7.01" y2="7"/>
+          </svg>
+        </div>
+        <h1 class="brand-title">Auto Tag Manager</h1>
+      </div>
+
+      <nav class="tabs" id="tabs" role="tablist">
+        <button class="tab active ripple" data-pane="rules" role="tab">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+            <line x1="7" y1="7" x2="7.01" y2="7"/>
+          </svg>
+          <span class="tab-label">Rules</span>
+        </button>
+
+        <button class="tab ripple" data-pane="test" role="tab">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 2v6L4 19a2 2 0 0 0 1.8 3h12.4A2 2 0 0 0 20 19L15 8V2"/>
+            <path d="M8 2h8"/>
+            <path d="M7 14h10"/>
+          </svg>
+          <span class="tab-label">Test</span>
+        </button>
+
+        <button class="tab ripple" data-pane="settings" role="tab">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="21" x2="4" y2="14"/>
+            <line x1="4" y1="10" x2="4" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12" y2="3"/>
+            <line x1="20" y1="21" x2="20" y2="16"/>
+            <line x1="20" y1="12" x2="20" y2="3"/>
+            <line x1="1" y1="14" x2="7" y2="14"/>
+            <line x1="9" y1="8" x2="15" y2="8"/>
+            <line x1="17" y1="16" x2="23" y2="16"/>
+          </svg>
+          <span class="tab-label">Settings</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       Content
+       ============================================================ -->
+  <main class="content" id="content">
+    <div class="container">
+
+      <!-- PANE: Rules -->
+      <section class="pane active" id="pane-rules">
+        <div class="card">
+          <h2 class="card-title">Create a rule</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label class="field-label" for="input-keyword">Keyword pattern</label>
+              <input id="input-keyword" type="text"
+                     placeholder="e.g. chemistry"
+                     autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="input-tags">Tags to apply</label>
+              <input id="input-tags" type="text"
+                     placeholder="e.g. chemistry, science"
+                     autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="field full">
+              <button id="btn-add" class="btn ripple" type="button">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.4"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Add rule
+              </button>
+              <p class="hint">
+                The keyword is treated as a <kbd>RegExp</kbd>. Tags must already exist in the app.
+                Press <kbd>Enter</kbd> in either field to add.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">
+            Active rules
+            <small id="rule-count">0</small>
+          </h2>
+
+          <div class="search-wrap">
+            <span class="search-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2.2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35"/>
+              </svg>
+            </span>
+            <input id="input-search" type="search"
+                   placeholder="Search rules by keyword or tag..."
+                   autocomplete="off" />
+          </div>
+
+          <div id="rules-list" class="rules-list"></div>
+        </div>
+      </section>
+
+      <!-- PANE: Test -->
+      <section class="pane" id="pane-test">
+        <div class="card">
+          <h2 class="card-title">Live preview</h2>
+          <div class="field">
+            <label class="field-label" for="input-test-title">
+              Try a task title to see which tags would be applied
+            </label>
+            <input id="input-test-title" type="text"
+                   placeholder="e.g. chemistry 14 tests"
+                   autocomplete="off" spellcheck="false" />
+          </div>
+          <div id="test-result" class="test-result"></div>
+        </div>
+      </section>
+
+      <!-- PANE: Settings -->
+      <section class="pane" id="pane-settings">
+        <div class="card">
+          <h2 class="card-title">Overview</h2>
+          <div class="stats-grid">
+            <div class="stat">
+              <div class="stat-value" id="stat-rules">0</div>
+              <div class="stat-label">Rules</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value" id="stat-applied">0</div>
+              <div class="stat-label">Tags applied</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value" id="stat-last">-</div>
+              <div class="stat-label">Last applied</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">Data management</h2>
+          <div class="row-flex">
+            <button id="btn-export" class="btn outline ripple" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Export
+            </button>
+
+            <button id="btn-import" class="btn outline ripple" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              Import
+            </button>
+
+            <button id="btn-clear" class="btn danger ripple" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6"/>
+              </svg>
+              Clear all
+            </button>
+          </div>
+          <input id="input-import-file" type="file"
+                 accept="application/json,.json" style="display: none;" />
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Snackbar -->
+  <div id="snackbar" class="snackbar">
+    <span class="snack-icon" id="snack-icon"></span>
+    <span id="snack-text"></span>
+  </div>
+
+  <!-- Dialog -->
+  <div id="scrim" class="scrim">
+    <div class="dialog" role="dialog" aria-modal="true">
+      <div class="dialog-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6"/>
+        </svg>
+      </div>
+      <h3 class="dialog-title" id="dialog-title">Delete rule?</h3>
+      <p class="dialog-text" id="dialog-text">This action cannot be undone.</p>
+      <div class="dialog-actions">
+        <button class="btn text" id="dialog-cancel" type="button">Cancel</button>
+        <button class="btn danger" id="dialog-confirm" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      console.log('[AutoTag] index.html loaded.');
+
+      // ============================================================
+      // Boot: wait for PluginAPI
+      // ============================================================
+      const MAX_WAIT_MS = 10000;
+      const POLL_MS = 50;
+      let waited = 0;
+
+      function waitForAPI() {
+        return new Promise((resolve, reject) => {
+          const check = () => {
+            if (window.PluginAPI) return resolve(window.PluginAPI);
+            if (waited >= MAX_WAIT_MS) return reject(new Error('PluginAPI not available'));
+            waited += POLL_MS;
+            setTimeout(check, POLL_MS);
+          };
+          check();
+        });
+      }
+
+      waitForAPI().then(boot).catch((err) => {
+        console.error('[AutoTag] FATAL:', err);
+        document.body.innerHTML = '<p style="padding:24px;color:red;font-family:sans-serif;">'
+          + 'AutoTag: ' + err.message + '</p>';
+      });
+
+      // ============================================================
+      // Boot
+      // ============================================================
+      function boot(API) {
+        const el = {
+          appBar:      document.getElementById('app-bar'),
+          content:     document.getElementById('content'),
+          tabs:        document.getElementById('tabs'),
+          snackbar:    document.getElementById('snackbar'),
+          snackText:   document.getElementById('snack-text'),
+          snackIcon:   document.getElementById('snack-icon'),
+          scrim:       document.getElementById('scrim'),
+          dialogTitle: document.getElementById('dialog-title'),
+          dialogText:  document.getElementById('dialog-text'),
+          dialogCancel:document.getElementById('dialog-cancel'),
+          dialogConfirm:document.getElementById('dialog-confirm'),
+
+          inputKey:    document.getElementById('input-keyword'),
+          inputTags:   document.getElementById('input-tags'),
+          btnAdd:      document.getElementById('btn-add'),
+          rulesList:   document.getElementById('rules-list'),
+          ruleCount:   document.getElementById('rule-count'),
+          inputSearch: document.getElementById('input-search'),
+
+          inputTest:   document.getElementById('input-test-title'),
+          testResult:  document.getElementById('test-result'),
+
+          statRules:   document.getElementById('stat-rules'),
+          statApplied: document.getElementById('stat-applied'),
+          statLast:    document.getElementById('stat-last'),
+          btnExport:   document.getElementById('btn-export'),
+          btnImport:   document.getElementById('btn-import'),
+          btnClear:    document.getElementById('btn-clear'),
+          inputFile:   document.getElementById('input-import-file'),
+        };
+
+        let store = { version: 2, rules: [], stats: { totalApplied: 0, lastAppliedAt: null } };
+        let searchQuery = '';
+        let editingId = null;
+        let allTagsCache = [];
+
+        // ---------- Ripple ----------
+        document.addEventListener('pointerdown', (e) => {
+          const target = e.target.closest('.ripple');
+          if (!target || target.disabled) return;
+          const rect = target.getBoundingClientRect();
+          const size = Math.max(rect.width, rect.height);
+          const span = document.createElement('span');
+          span.className = 'ripple-effect';
+          span.style.width = span.style.height = size + 'px';
+          span.style.left = (e.clientX - rect.left - size / 2) + 'px';
+          span.style.top  = (e.clientY - rect.top  - size / 2) + 'px';
+          target.appendChild(span);
+          setTimeout(() => span.remove(), 700);
+        });
+
+        // ---------- Snackbar ----------
+        let snackTimer = null;
+        function snack(message, type) {
+          const kind = type || 'success';
+          el.snackText.textContent = message;
+          el.snackbar.className = 'snackbar ' + kind;
+          el.snackIcon.innerHTML = kind === 'error'
+            ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+            : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+          requestAnimationFrame(() => el.snackbar.classList.add('show'));
+          clearTimeout(snackTimer);
+          snackTimer = setTimeout(() => el.snackbar.classList.remove('show'), 2600);
+        }
+
+        // ---------- Dialog ----------
+        function openDialog(title, text, onConfirm) {
+          el.dialogTitle.textContent = title;
+          el.dialogText.textContent = text;
+          el.scrim.classList.add('show');
+          const cleanup = () => {
+            el.dialogConfirm.removeEventListener('click', okHandler);
+            el.dialogCancel.removeEventListener('click', cancelHandler);
+          };
+          const okHandler = () => { cleanup(); el.scrim.classList.remove('show'); onConfirm(); };
+          const cancelHandler = () => { cleanup(); el.scrim.classList.remove('show'); };
+          el.dialogConfirm.addEventListener('click', okHandler);
+          el.dialogCancel.addEventListener('click', cancelHandler);
+        }
+
+        el.scrim.addEventListener('click', (e) => {
+          if (e.target === el.scrim) el.scrim.classList.remove('show');
+        });
+
+        // ---------- Storage ----------
+        function migrate(data) {
+          if (Array.isArray(data)) {
+            return {
+              version: 2,
+              rules: data.map((r, i) => ({
+                id: 'legacy_' + i + '_' + Date.now(),
+                keyword: r.keyword || '',
+                tags: Array.isArray(r.tags) ? r.tags : [],
+                enabled: true,
+                createdAt: Date.now(),
+                applyCount: 0,
+              })),
+              stats: { totalApplied: 0, lastAppliedAt: null },
+            };
+          }
+          if (data && Array.isArray(data.rules)) {
+            return {
+              version: 2,
+              rules: data.rules,
+              stats: data.stats || { totalApplied: 0, lastAppliedAt: null },
+            };
+          }
+          return { version: 2, rules: [], stats: { totalApplied: 0, lastAppliedAt: null } };
+        }
+
+        async function loadStore() {
+          try {
+            const raw = await API.loadSyncedData();
+            if (!raw) return migrate(null);
+            return migrate(JSON.parse(raw));
+          } catch (e) {
+            console.error('[AutoTag] loadStore failed:', e);
+            return migrate(null);
+          }
+        }
+
+        async function saveStore() {
+          try {
+            await API.persistDataSynced(JSON.stringify(store));
+            return true;
+          } catch (e) {
+            console.error('[AutoTag] saveStore failed:', e);
+            snack('Failed to save changes', 'error');
+            return false;
+          }
+        }
+
+        // ---------- Helpers ----------
+        function parseTags(v) {
+          return v.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        function isValidRegex(p) {
+          try { new RegExp(p); return true; } catch { return false; }
+        }
+        function timeAgo(ts) {
+          if (!ts) return '-';
+          const s = Math.floor((Date.now() - ts) / 1000);
+          if (s < 60) return s + 's';
+          const m = Math.floor(s / 60);
+          if (m < 60) return m + 'm';
+          const h = Math.floor(m / 60);
+          if (h < 24) return h + 'h';
+          return Math.floor(h / 24) + 'd';
+        }
+        function tagExists(name) {
+          return allTagsCache.some(t => t.title === name);
+        }
+
+        // ---------- Render: Rules ----------
+        function renderRules() {
+          const q = searchQuery.toLowerCase();
+          const filtered = store.rules.filter(r =>
+            !q ||
+            r.keyword.toLowerCase().includes(q) ||
+            r.tags.some(t => t.toLowerCase().includes(q))
+          );
+
+          el.ruleCount.textContent = store.rules.length;
+          el.rulesList.innerHTML = '';
+
+          if (filtered.length === 0) {
+            el.rulesList.appendChild(renderEmpty());
+            return;
+          }
+
+          filtered.forEach((rule) => {
+            const idx = store.rules.indexOf(rule);
+            el.rulesList.appendChild(renderRule(rule, idx));
+          });
+        }
+
+        function renderEmpty() {
+          const div = document.createElement('div');
+          div.className = 'empty';
+          if (searchQuery) {
+            div.innerHTML =
+              '<div class="empty-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>' +
+              '<div class="empty-title">No matching rules</div>' +
+              '<div class="empty-desc">Try a different keyword or tag.</div>';
+          } else {
+            div.innerHTML =
+              '<div class="empty-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>' +
+              '<div class="empty-title">No rules yet</div>' +
+              '<div class="empty-desc">Create your first rule above to start tagging tasks automatically.</div>';
+          }
+          return div;
+        }
+
+        function renderRule(rule, index) {
+          const isEditing = editingId === rule.id;
+          const wrapper = document.createElement('div');
+          wrapper.className = 'rule' + (rule.enabled === false ? ' disabled' : '');
+          if (isEditing) wrapper.appendChild(renderEditForm(rule));
+          else {
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'switch ripple' + (rule.enabled !== false ? ' on' : '');
+            toggle.title = rule.enabled !== false ? 'Disable rule' : 'Enable rule';
+            toggle.addEventListener('click', () => toggleRule(index));
+            wrapper.appendChild(toggle);
+
+            const body = document.createElement('div');
+            body.className = 'rule-body';
+
+            const kw = document.createElement('div');
+            kw.className = 'rule-keyword';
+            kw.textContent = '/' + rule.keyword + '/';
+            body.appendChild(kw);
+
+            const tagsBox = document.createElement('div');
+            tagsBox.className = 'rule-tags';
+            for (const t of rule.tags) {
+              const exists = tagExists(t);
+              const sp = document.createElement('span');
+              sp.className = 'tag ' + (exists ? 'ok' : 'miss');
+              sp.title = exists ? 'Tag exists' : 'Tag does not exist in the app';
+              sp.innerHTML = '<span class="dot"></span>';
+              sp.appendChild(document.createTextNode(t));
+              tagsBox.appendChild(sp);
+            }
+            body.appendChild(tagsBox);
+
+            if (rule.applyCount) {
+              const st = document.createElement('div');
+              st.className = 'rule-stats';
+              st.textContent = 'Applied ' + rule.applyCount + ' time' + (rule.applyCount === 1 ? '' : 's');
+              body.appendChild(st);
+            }
+            wrapper.appendChild(body);
+
+            const actions = document.createElement('div');
+            actions.className = 'rule-actions';
+
+            const editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.className = 'btn icon ripple';
+            editBtn.title = 'Edit';
+            editBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
+            editBtn.addEventListener('click', () => { editingId = rule.id; renderRules(); });
+            actions.appendChild(editBtn);
+
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'btn icon ripple';
+            delBtn.title = 'Delete';
+            delBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6"/></svg>';
+            delBtn.addEventListener('click', () => confirmDelete(index));
+            actions.appendChild(delBtn);
+
+            wrapper.appendChild(actions);
+          }
+          return wrapper;
+        }
+
+        function renderEditForm(rule) {
+          const form = document.createElement('div');
+          form.className = 'edit-form';
+
+          const kw = document.createElement('input');
+          kw.type = 'text';
+          kw.value = rule.keyword;
+          kw.placeholder = 'Keyword pattern';
+
+          const tg = document.createElement('input');
+          tg.type = 'text';
+          tg.value = rule.tags.join(', ');
+          tg.placeholder = 'Tags, comma-separated';
+
+          const row = document.createElement('div');
+          row.className = 'btn-row';
+
+          const save = document.createElement('button');
+          save.type = 'button';
+          save.className = 'btn ripple';
+          save.textContent = 'Save';
+          save.addEventListener('click', () => commitEdit(rule.id, kw.value, tg.value));
+
+          const cancel = document.createElement('button');
+          cancel.type = 'button';
+          cancel.className = 'btn outline ripple';
+          cancel.textContent = 'Cancel';
+          cancel.addEventListener('click', () => { editingId = null; renderRules(); });
+
+          row.appendChild(cancel);
+          row.appendChild(save);
+
+          form.appendChild(kw);
+          form.appendChild(tg);
+          form.appendChild(row);
+
+          setTimeout(() => kw.focus(), 30);
+
+          const onKey = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); save.click(); }
+            else if (e.key === 'Escape') { cancel.click(); }
+          };
+          kw.addEventListener('keydown', onKey);
+          tg.addEventListener('keydown', onKey);
+
+          return form;
+        }
+
+        // ---------- Actions ----------
+        async function addRule() {
+          const keyword = el.inputKey.value.trim();
+          const tags = parseTags(el.inputTags.value);
+
+          if (!keyword) { snack('Enter a keyword pattern', 'error'); el.inputKey.focus(); return; }
+          if (tags.length === 0) { snack('Enter at least one tag', 'error'); el.inputTags.focus(); return; }
+          if (!isValidRegex(keyword)) { snack('Invalid RegExp: "' + keyword + '"', 'error'); return; }
+
+          store.rules.push({
+            id: 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            keyword, tags, enabled: true,
+            createdAt: Date.now(), applyCount: 0,
+          });
+          if (!(await saveStore())) return;
+
+          el.inputKey.value = '';
+          el.inputTags.value = '';
+          el.inputKey.focus();
+
+          renderRules();
+          renderStats();
+          renderTest();
+          snack('Rule added');
+        }
+
+        async function commitEdit(id, kw, tg) {
+          const keyword = kw.trim();
+          const tags = parseTags(tg);
+          if (!keyword || tags.length === 0) { snack('Keyword and tags are required', 'error'); return; }
+          if (!isValidRegex(keyword)) { snack('Invalid RegExp', 'error'); return; }
+
+          const rule = store.rules.find(r => r.id === id);
+          if (!rule) return;
+          rule.keyword = keyword;
+          rule.tags = tags;
+
+          if (!(await saveStore())) return;
+          editingId = null;
+          renderRules();
+          renderTest();
+          snack('Rule updated');
+        }
+
+        async function toggleRule(index) {
+          const rule = store.rules[index];
+          rule.enabled = rule.enabled === false ? true : false;
+          if (!(await saveStore())) return;
+          renderRules();
+          renderTest();
+        }
+
+        function confirmDelete(index) {
+          const rule = store.rules[index];
+          if (!rule) return;
+          openDialog(
+            'Delete rule?',
+            'The rule "/' + rule.keyword + '/" will be permanently removed.',
+            async () => { await deleteRule(index); }
+          );
+        }
+
+        async function deleteRule(index) {
+          store.rules.splice(index, 1);
+          if (!(await saveStore())) return;
+          renderRules();
+          renderStats();
+          renderTest();
+          snack('Rule deleted');
+        }
+
+        // ---------- Search ----------
+        el.inputSearch.addEventListener('input', () => {
+          searchQuery = el.inputSearch.value.trim();
+          renderRules();
+        });
+
+        // ---------- Test / Preview ----------
+        function renderTest() {
+          const title = el.inputTest.value.trim();
+          el.testResult.innerHTML = '';
+
+          if (!title) {
+            el.testResult.innerHTML =
+              '<div class="test-hint">Type a task title above to preview which tags will be applied.</div>';
+            return;
+          }
+
+          const matches = [];
+          for (const rule of store.rules) {
+            if (rule.enabled === false) continue;
+            let re;
+            try { re = new RegExp(rule.keyword); } catch { continue; }
+            if (re.test(title)) matches.push(rule);
+          }
+
+          if (matches.length === 0) {
+            el.testResult.innerHTML =
+              '<div class="test-hint">No rules match this title.</div>';
+            return;
+          }
+
+          for (const rule of matches) {
+            const row = document.createElement('div');
+            row.className = 'test-match';
+
+            const kw = document.createElement('span');
+            kw.className = 'test-match-kw';
+            kw.textContent = '/' + rule.keyword + '/';
+            row.appendChild(kw);
+
+            const arrow = document.createElement('span');
+            arrow.className = 'test-arrow';
+            arrow.textContent = '→';
+            row.appendChild(arrow);
+
+            for (const t of rule.tags) {
+              const exists = tagExists(t);
+              const sp = document.createElement('span');
+              sp.className = 'tag ' + (exists ? 'ok' : 'miss');
+              sp.title = exists ? 'Tag exists' : 'Tag does not exist';
+              sp.innerHTML = '<span class="dot"></span>';
+              sp.appendChild(document.createTextNode(t));
+              row.appendChild(sp);
+            }
+
+            el.testResult.appendChild(row);
+          }
+
+          const legend = document.createElement('div');
+          legend.className = 'hint';
+          legend.style.marginTop = '14px';
+          legend.style.textAlign = 'center';
+          legend.innerHTML =
+            '<span class="tag ok"><span class="dot"></span>exists</span> &nbsp; ' +
+            '<span class="tag miss"><span class="dot"></span>missing</span>';
+          el.testResult.appendChild(legend);
+        }
+
+        el.inputTest.addEventListener('input', renderTest);
+
+        // ---------- Stats ----------
+        function renderStats() {
+          el.statRules.textContent = store.rules.length;
+          el.statApplied.textContent = store.stats.totalApplied || 0;
+          el.statLast.textContent = timeAgo(store.stats.lastAppliedAt);
+        }
+
+        // ---------- Tabs ----------
+        el.tabs.addEventListener('click', (e) => {
+          const btn = e.target.closest('button[data-pane]');
+          if (!btn) return;
+          const pane = btn.dataset.pane;
+
+          el.tabs.querySelectorAll('button').forEach(b =>
+            b.classList.toggle('active', b === btn));
+          document.querySelectorAll('.pane').forEach(p =>
+            p.classList.toggle('active', p.id === 'pane-' + pane));
+
+          if (pane === 'test') { refreshTags().then(renderTest); }
+          if (pane === 'settings') renderStats();
+        });
+
+        // ---------- Tags cache ----------
+        async function refreshTags() {
+          try { allTagsCache = (await API.getAllTags()) || []; }
+          catch { allTagsCache = []; }
+        }
+
+        // ---------- Export / Import / Clear ----------
+        el.btnExport.addEventListener('click', () => {
+          const blob = new Blob([JSON.stringify(store, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'auto-tag-rules.json';
+          a.click();
+          URL.revokeObjectURL(url);
+          snack('Exported successfully');
+        });
+
+        el.btnImport.addEventListener('click', () => el.inputFile.click());
+
+        el.inputFile.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          try {
+            const text = await file.text();
+            store = migrate(JSON.parse(text));
+            if (!(await saveStore())) return;
+            renderRules(); renderStats(); renderTest();
+            snack('Imported successfully');
+          } catch { snack('Invalid JSON file', 'error'); }
+          e.target.value = '';
+        });
+
+        el.btnClear.addEventListener('click', () => {
+          if (store.rules.length === 0) { snack('No rules to clear', 'error'); return; }
+          openDialog(
+            'Clear all rules?',
+            'All ' + store.rules.length + ' rules will be permanently deleted. This cannot be undone.',
+            async () => {
+              store = { version: 2, rules: [], stats: { totalApplied: 0, lastAppliedAt: null } };
+              if (!(await saveStore())) return;
+              renderRules(); renderStats(); renderTest();
+              snack('All rules cleared');
+            }
+          );
+        });
+
+        // ---------- Add + shortcuts ----------
+        el.btnAdd.addEventListener('click', addRule);
+
+        const onEnterAdd = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            addRule();
+          }
+        };
+        el.inputKey.addEventListener('keydown', onEnterAdd);
+        el.inputTags.addEventListener('keydown', onEnterAdd);
+
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && el.scrim.classList.contains('show')) {
+            el.scrim.classList.remove('show');
+          }
+        });
+
+        el.content.addEventListener('scroll', () => {
+          el.appBar.classList.toggle('scrolled', el.content.scrollTop > 4);
+        });
+
+        // ---------- Init ----------
+        (async () => {
+          store = await loadStore();
+          await refreshTags();
+          renderRules();
+          renderStats();
+          renderTest();
+          console.log('[AutoTag] UI ready.', store);
+        })();
+      }
+    })();
+  </script>
+</body>
+</html>
