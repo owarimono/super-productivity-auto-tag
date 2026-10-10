@@ -68,7 +68,7 @@ Whether you're managing study sessions, project tasks, or personal errands, this
 ><img width="1837" height="938" alt="image" src="https://github.com/user-attachments/assets/1a8379e4-2451-4f38-bfa8-c7ab77fb4dcc" />
 > **Test tab** — Preview how tags would apply to any task title.
 
-<img width="1836" height="932" alt="image" src="https://github.com/user-attachments/assets/c827961e-46c9-45ef-b6d8-bf86203ef949" />
+><img width="1836" height="932" alt="image" src="https://github.com/user-attachments/assets/c827961e-46c9-45ef-b6d8-bf86203ef949" />
 > **Settings tab** — View statistics and manage data.
 
 
