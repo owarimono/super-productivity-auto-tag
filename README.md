@@ -265,7 +265,7 @@ Only task IDs are logged — never task titles — so user content stays out of 
 | Rule matches but nothing happens | The keyword's regex is invalid. Check the Rules list for red-dot tags.            |
 | Cannot see plugin logs           | Right-click the plugin UI and choose **Inspect Element** to open iframe DevTools. |
 | Rules disappeared after upgrade  | Migration from older format is automatic; if it fails, check DevTools for errors. |
-| Tag was removed and came back    | Update to v2.1.0+. Rules now re-run only on title changes, not tag edits.         |
+| Tag was removed and came back    | Update to v2.1.1+. Rules now re-run only on title changes, not tag edits.         |
 
 ---
 
