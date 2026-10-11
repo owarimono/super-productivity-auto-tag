@@ -1,7 +1,7 @@
 {
   "id": "auto-tag-manager",
   "name": "Auto Tag Manager",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Automatically applies tags to tasks based on keywords in the task title.",
   "manifestVersion": 1,
   "minSupVersion": "18.8.0",
@@ -15,10 +15,8 @@
     "showIndexHtmlAsView",
     "persistDataSynced",
     "loadSyncedData",
-    "showSnack",
     "getAllTags",
-    "updateTask",
-    "getTasks"
+    "updateTask"
   ],
-  "hooks": ["taskCreated", "taskUpdate", "anyTaskUpdate"]
+  "hooks": ["taskCreated", "taskUpdate"]
 }

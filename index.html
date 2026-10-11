@@ -457,12 +457,6 @@
     .tag.ok   .dot { background: var(--success-fg); }
     .tag.miss .dot { background: var(--danger-fg); }
 
-    .rule-stats {
-      font-size: 12px;
-      color: var(--on-surface-var);
-      margin-top: 6px;
-    }
-
     .rule-actions {
       display: flex;
       gap: 4px;
@@ -620,7 +614,7 @@
        ============================================================ */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: 1fr;
       gap: 12px;
     }
 
@@ -940,14 +934,6 @@
               <div class="stat-value" id="stat-rules">0</div>
               <div class="stat-label">Rules</div>
             </div>
-            <div class="stat">
-              <div class="stat-value" id="stat-applied">0</div>
-              <div class="stat-label">Tags applied</div>
-            </div>
-            <div class="stat">
-              <div class="stat-value" id="stat-last">-</div>
-              <div class="stat-label">Last applied</div>
-            </div>
           </div>
         </div>
 
@@ -1077,15 +1063,16 @@
           testResult:  document.getElementById('test-result'),
 
           statRules:   document.getElementById('stat-rules'),
-          statApplied: document.getElementById('stat-applied'),
-          statLast:    document.getElementById('stat-last'),
           btnExport:   document.getElementById('btn-export'),
           btnImport:   document.getElementById('btn-import'),
           btnClear:    document.getElementById('btn-clear'),
           inputFile:   document.getElementById('input-import-file'),
         };
 
-        let store = { version: 2, rules: [], stats: { totalApplied: 0, lastAppliedAt: null } };
+        // v3: only rules are persisted. Stats are intentionally NOT stored
+        // in synced data, so a tagging write can never overwrite a rule
+        // edit made on another device.
+        let store = { version: 3, rules: [] };
         let searchQuery = '';
         let editingId = null;
         let allTagsCache = [];
@@ -1138,30 +1125,26 @@
           if (e.target === el.scrim) el.scrim.classList.remove('show');
         });
 
-        // ---------- Storage ----------
+        // ---------- Storage (v3) ----------
+        // Accepts: legacy array, v2 {rules, stats}, v3 {rules}
+        // Always returns a v3 store. Drops stats if present.
         function migrate(data) {
           if (Array.isArray(data)) {
             return {
-              version: 2,
+              version: 3,
               rules: data.map((r, i) => ({
                 id: 'legacy_' + i + '_' + Date.now(),
                 keyword: r.keyword || '',
                 tags: Array.isArray(r.tags) ? r.tags : [],
                 enabled: true,
                 createdAt: Date.now(),
-                applyCount: 0,
               })),
-              stats: { totalApplied: 0, lastAppliedAt: null },
             };
           }
           if (data && Array.isArray(data.rules)) {
-            return {
-              version: 2,
-              rules: data.rules,
-              stats: data.stats || { totalApplied: 0, lastAppliedAt: null },
-            };
+            return { version: 3, rules: data.rules };
           }
-          return { version: 2, rules: [], stats: { totalApplied: 0, lastAppliedAt: null } };
+          return { version: 3, rules: [] };
         }
 
         async function loadStore() {
@@ -1193,18 +1176,10 @@
         function isValidRegex(p) {
           try { new RegExp(p); return true; } catch { return false; }
         }
-        function timeAgo(ts) {
-          if (!ts) return '-';
-          const s = Math.floor((Date.now() - ts) / 1000);
-          if (s < 60) return s + 's';
-          const m = Math.floor(s / 60);
-          if (m < 60) return m + 'm';
-          const h = Math.floor(m / 60);
-          if (h < 24) return h + 'h';
-          return Math.floor(h / 24) + 'd';
-        }
+        // Skip the built-in Today tag: its membership comes from the due
+        // date, never from tagIds, so it must not be shown as available.
         function tagExists(name) {
-          return allTagsCache.some(t => t.title === name);
+          return allTagsCache.some(t => t.id !== 'TODAY' && t.title === name);
         }
 
         // ---------- Render: Rules ----------
@@ -1280,13 +1255,6 @@
               tagsBox.appendChild(sp);
             }
             body.appendChild(tagsBox);
-
-            if (rule.applyCount) {
-              const st = document.createElement('div');
-              st.className = 'rule-stats';
-              st.textContent = 'Applied ' + rule.applyCount + ' time' + (rule.applyCount === 1 ? '' : 's');
-              body.appendChild(st);
-            }
             wrapper.appendChild(body);
 
             const actions = document.createElement('div');
@@ -1373,7 +1341,7 @@
           store.rules.push({
             id: 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
             keyword, tags, enabled: true,
-            createdAt: Date.now(), applyCount: 0,
+            createdAt: Date.now(),
           });
           if (!(await saveStore())) return;
 
@@ -1502,11 +1470,9 @@
 
         el.inputTest.addEventListener('input', renderTest);
 
-        // ---------- Stats ----------
+        // ---------- Stats (v3: rules only) ----------
         function renderStats() {
           el.statRules.textContent = store.rules.length;
-          el.statApplied.textContent = store.stats.totalApplied || 0;
-          el.statLast.textContent = timeAgo(store.stats.lastAppliedAt);
         }
 
         // ---------- Tabs ----------
@@ -1563,7 +1529,7 @@
             'Clear all rules?',
             'All ' + store.rules.length + ' rules will be permanently deleted. This cannot be undone.',
             async () => {
-              store = { version: 2, rules: [], stats: { totalApplied: 0, lastAppliedAt: null } };
+              store = { version: 3, rules: [] };
               if (!(await saveStore())) return;
               renderRules(); renderStats(); renderTest();
               snack('All rules cleared');

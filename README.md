@@ -4,7 +4,7 @@
 
 **A powerful plugin for [Super Productivity](https://github.com/super-productivity/super-productivity) that automatically applies tags to tasks based on keywords in their titles.**
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue?style=flat-square)](https://github.com/owarimono/auto-tag-manager/releases)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue?style=flat-square)](https://github.com/owarimono/super-productivity-auto-tag/releases)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Super Productivity](https://img.shields.io/badge/super--productivity-18.8%2B-purple?style=flat-square)](https://github.com/super-productivity/super-productivity)
 [![Manifest Version](https://img.shields.io/badge/manifest-v1-orange?style=flat-square)](manifest.json)
@@ -35,10 +35,11 @@ Whether you're managing study sessions, project tasks, or personal errands, this
 
 ### 🎯 Core
 
-- **Automatic tagging** — Applies tags the moment a task is created or edited.
+- **Automatic tagging** — Applies tags the moment a task is created or its title is edited.
 - **Regex-powered keywords** — Full `RegExp` support for advanced pattern matching (e.g., `^(todo|fix|bug):`).
 - **Multi-tag rules** — One keyword can trigger multiple tags at once.
 - **Duplicate-safe** — Never applies the same tag twice to the same task.
+- **Respects manual edits** — If you remove an auto-applied tag, the plugin won't add it back until the title changes again.
 
 ### 🎨 Interface
 
@@ -48,31 +49,30 @@ Whether you're managing study sessions, project tasks, or personal errands, this
 - **Search** — Filter rules by keyword or tag.
 - **Toggle switches** — Enable/disable individual rules on the fly.
 - **Tag validation** — Visual indicators (green/red dots) show whether a tag actually exists in the app.
-- **Statistics** — Track how many tags have been applied and when.
 - **Import / Export** — Backup and restore your rules as JSON.
 
 ### 🛡️ Reliability
 
-- **Backward compatible** — Auto-migrates older rule formats.
+- **Backward compatible** — Auto-migrates older rule formats (v1 array and v2 objects).
 - **Fault-tolerant** — Invalid regex patterns are skipped, not crashed.
 - **Persistent** — Rules are stored using Super Productivity's synced storage.
+- **Sync-safe** — Only rules are persisted; tagging never writes to synced data, so it can't overwrite rule edits made on another device.
 
 ---
 
 ## 📸 Screenshots
 
+> **Rules tab** — Manage your keyword-to-tag rules with a clean, native UI.
 
-><img width="1838" height="927" alt="image" src="https://github.com/user-attachments/assets/af0fe135-6804-48de-bad6-6e097efa6dcf" />
-> Rules tab — Manage your keyword-to-tag rules with a clean, native UI.
+![Rules tab](https://github.com/user-attachments/assets/af0fe135-6804-48de-bad6-6e097efa6dcf)
 
-><img width="1837" height="938" alt="image" src="https://github.com/user-attachments/assets/1a8379e4-2451-4f38-bfa8-c7ab77fb4dcc" />
-> Test tab — Preview how tags would apply to any task title.
+> **Test tab** — Preview how tags would apply to any task title.
 
-><img width="1836" height="932" alt="image" src="https://github.com/user-attachments/assets/c827961e-46c9-45ef-b6d8-bf86203ef949" />
-> Settings tab — View statistics and manage data.
+![Test tab](https://github.com/user-attachments/assets/1a8379e4-2451-4f38-bfa8-c7ab77fb4dcc)
 
+> **Settings tab** — Manage data (export, import, clear).
 
----
+![Settings tab](https://github.com/user-attachments/assets/c827961e-46c9-45ef-b6d8-bf86203ef949)
 
 ## 🚀 Installation
 
@@ -84,7 +84,7 @@ Whether you're managing study sessions, project tasks, or personal errands, this
 ### Steps
 
 1. **Download the latest release**
-   Grab the `auto-tag-manager.zip` file from the [Releases](https://github.com/owarimono/auto-tag-manager/releases) page.
+   Grab the `auto-tag-manager.zip` file from the [Releases](https://github.com/owarimono/super-productivity-auto-tag/releases) page.
 
 2. **Open Super Productivity**
    Navigate to **Settings → Plugins**.
@@ -132,6 +132,8 @@ Before committing to a rule, use the **Test** tab:
 2. The plugin shows every matching rule and the tags it would apply.
 3. Tags with a **green dot** exist in your app; **red dots** mean the tag is missing and must be created first.
 
+> **Note:** The built-in **Today** tag is intentionally excluded from validation. Membership in Today comes from a task's due date, not from its tag list, so it can't be applied by a rule.
+
 ### Managing Data
 
 In the **Settings** tab you can:
@@ -139,6 +141,10 @@ In the **Settings** tab you can:
 - **Export** all rules to a JSON file (great for backups or sharing).
 - **Import** rules from a previously exported file.
 - **Clear** all rules with a confirmation dialog.
+
+### Removing Auto-Applied Tags
+
+Auto-applied tags behave like any other tag: you can remove one from a task at any time. The plugin will not re-add it just because the tag was removed — rules only re-run when a task's **title** changes (or when the task is first created). This means you stay in control: to permanently stop a tag from being applied, disable or delete its rule.
 
 ---
 
@@ -156,7 +162,7 @@ The plugin is split into two parts, following Super Productivity's plugin archit
 
 ```
 ┌────────────────────────────────────────────────────┐
-│  User creates / edits a task                       │
+│  User creates a task, or edits its title           │
 │       ↓                                            │
 │  Host fires `taskCreated` or `taskUpdate`          │
 │       ↓                                            │
@@ -170,6 +176,27 @@ The plugin is split into two parts, following Super Productivity's plugin archit
 
 Because hooks live in `plugin.js` (the host context), tagging works **even when the settings UI is closed**.
 
+### Storage Format
+
+Rules are persisted in a versioned envelope inside Super Productivity's synced storage:
+
+```json
+{
+  "version": 3,
+  "rules": [
+    {
+      "id": "r_...",
+      "keyword": "chemistry",
+      "tags": ["chemistry", "science"],
+      "enabled": true,
+      "createdAt": 1700000000000
+    }
+  ]
+}
+```
+
+Older formats (a plain array of `{ keyword, tags }` objects, or a v2 object that also carried `stats`) are migrated automatically on load. Any legacy stats field is discarded, since stats are no longer persisted.
+
 ---
 
 ## 🔐 Permissions
@@ -182,10 +209,8 @@ The plugin requests the following permissions:
 | `showIndexHtmlAsView`  | To display the settings UI.                        |
 | `persistDataSynced`    | To save your rules (and sync them across devices). |
 | `loadSyncedData`       | To load your saved rules.                          |
-| `showSnack`            | To show inline notifications.                      |
 | `getAllTags`           | To look up tag IDs by name.                        |
 | `updateTask`           | To apply tags to tasks.                            |
-| `getTasks`             | To read task data.                                 |
 
 No data leaves your machine. Nothing is sent to external servers.
 
@@ -196,7 +221,7 @@ No data leaves your machine. Nothing is sent to external servers.
 ### Project Structure
 
 ```
-auto-tag-manager/
+super-productivity-auto-tag/
 ├── manifest.json     # Plugin metadata, permissions, hooks
 ├── plugin.js         # Host-side logic (hooks + header button)
 ├── index.html        # UI (self-contained HTML + CSS + JS)
@@ -224,8 +249,10 @@ There is **no build step**. Everything is plain JavaScript, HTML, and CSS.
   ```
   [AutoTag] plugin.js ready.
   [AutoTag] Registered hook: taskCreated
-  [AutoTag] Applied tags to: Chemistry 101
+  [AutoTag] Applied tags to task id: abc123
   ```
+
+Only task IDs are logged — never task titles — so user content stays out of the console.
 
 ---
 
@@ -238,6 +265,7 @@ There is **no build step**. Everything is plain JavaScript, HTML, and CSS.
 | Rule matches but nothing happens | The keyword's regex is invalid. Check the Rules list for red-dot tags.            |
 | Cannot see plugin logs           | Right-click the plugin UI and choose **Inspect Element** to open iframe DevTools. |
 | Rules disappeared after upgrade  | Migration from older format is automatic; if it fails, check DevTools for errors. |
+| Tag was removed and came back    | Update to v2.1.0+. Rules now re-run only on title changes, not tag edits.         |
 
 ---
 
@@ -248,9 +276,8 @@ There is **no build step**. Everything is plain JavaScript, HTML, and CSS.
 - [ ] Tag auto-creation for missing tags
 - [ ] Rule groups / folders
 - [ ] Localization (i18n)
-- [ ] Statistics dashboard with charts
 
-Have an idea? Open an [issue](https://github.com/owarimono/auto-tag-manager/issues).
+Have an idea? Open an [issue](https://github.com/owarimono/super-productivity-auto-tag/issues).
 
 ---
 

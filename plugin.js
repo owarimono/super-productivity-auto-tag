@@ -1,5 +1,5 @@
 /**
- * Auto Tag Manager - Host-side logic (v2).
+ * Auto Tag Manager - Host-side logic (v3).
  * Hooks live here so they stay active even when the UI is closed.
  */
 
@@ -29,55 +29,44 @@
   }
 
   // ---------- Storage ----------
-  // New format: { version: 2, rules: [...], stats: {...} }
-  // Old format: [ { keyword, tags }, ... ]  → auto-migrated.
+  // Only rules are persisted in synced data.
+  // Stats are intentionally NOT written here: a tagging write would race
+  // with a settings save and could overwrite a rule edit made on another
+  // device, depending on sync order.
+  //
+  // v3 format: { version: 3, rules: [...] }
+  // v2 format: { version: 2, rules: [...], stats: {...} }  -> stats dropped
+  // legacy:    [ { keyword, tags }, ... ]                  -> migrated
+  const EMPTY_RULES = () => ({ version: 3, rules: [] });
 
   function migrate(data) {
     if (Array.isArray(data)) {
       return {
-        version: 2,
+        version: 3,
         rules: data.map((r, i) => ({
           id: "legacy_" + i + "_" + Date.now(),
           keyword: r.keyword || "",
           tags: Array.isArray(r.tags) ? r.tags : [],
           enabled: true,
           createdAt: Date.now(),
-          applyCount: 0,
         })),
-        stats: { totalApplied: 0, lastAppliedAt: null },
       };
     }
     if (data && Array.isArray(data.rules)) {
-      return {
-        version: 2,
-        rules: data.rules,
-        stats: data.stats || { totalApplied: 0, lastAppliedAt: null },
-      };
+      // Preserve rule fields as-is; drop stats if present.
+      return { version: 3, rules: data.rules };
     }
-    return {
-      version: 2,
-      rules: [],
-      stats: { totalApplied: 0, lastAppliedAt: null },
-    };
+    return EMPTY_RULES();
   }
 
   async function loadStore() {
     try {
       const raw = await API.loadSyncedData();
-      if (!raw)
-        return {
-          version: 2,
-          rules: [],
-          stats: { totalApplied: 0, lastAppliedAt: null },
-        };
+      if (!raw) return EMPTY_RULES();
       return migrate(JSON.parse(raw));
     } catch (err) {
       console.error("[AutoTag] loadStore failed:", err);
-      return {
-        version: 2,
-        rules: [],
-        stats: { totalApplied: 0, lastAppliedAt: null },
-      };
+      return EMPTY_RULES();
     }
   }
 
@@ -102,9 +91,16 @@
     const allTags = await API.getAllTags();
     if (!allTags || allTags.length === 0) return;
 
-    const nameToId = new Map(allTags.map((t) => [t.title, t.id]));
+    // Build a title -> id map, skipping the built-in Today tag.
+    // Today membership comes from the due date, never from tagIds.
+    const nameToId = new Map();
+    for (const t of allTags) {
+      if (t.id === "TODAY") continue;
+      nameToId.set(t.title, t.id);
+    }
+
     const tagIds = new Set(task.tagIds || []);
-    let changed = false;
+    const addedIds = [];
 
     for (const rule of activeRules) {
       let regex;
@@ -119,41 +115,55 @@
         const id = nameToId.get(tagTitle);
         if (id && !tagIds.has(id)) {
           tagIds.add(id);
-          changed = true;
+          addedIds.push(id);
         }
-      }
-
-      if (changed) {
-        rule.applyCount = (rule.applyCount || 0) + 1;
       }
     }
 
-    if (changed) {
-      try {
-        await API.updateTask(task.id, { tagIds: [...tagIds] });
-        store.stats.totalApplied = (store.stats.totalApplied || 0) + 1;
-        store.stats.lastAppliedAt = Date.now();
-        await saveStore(store);
-        console.log("[AutoTag] Applied tags to:", task.title);
-      } catch (err) {
-        console.error("[AutoTag] updateTask failed:", err);
-      }
+    if (addedIds.length === 0) return;
+
+    try {
+      await API.updateTask(task.id, { tagIds: [...tagIds] });
+      // Log the id, not the title, to keep user content out of the console.
+      console.log("[AutoTag] Applied tags to task id:", task.id);
+    } catch (err) {
+      console.error("[AutoTag] updateTask failed:", err);
     }
   }
 
   // ---------- Hooks ----------
+  // We intentionally do NOT register `anyTaskUpdate`:
+  //   - it fires for the same events as taskCreated/taskUpdate (double-run),
+  //   - it also fires on delete with the removed task, which could trigger
+  //     an updateTask call on a task that no longer exists.
+  //
+  // For `taskUpdate` we only re-run rules when the title was actually
+  // changed. Otherwise removing an auto-applied tag would immediately
+  // re-add it.
   function registerHooks() {
-    ["taskCreated", "taskUpdate", "anyTaskUpdate"].forEach((name) => {
-      try {
-        API.registerHook(name, async (payload) => {
-          const task = payload && payload.task ? payload.task : payload;
-          await applyRulesToTask(task);
-        });
-        console.log("[AutoTag] Registered hook:", name);
-      } catch (err) {
-        console.warn("[AutoTag] Failed to register hook:", name, err);
-      }
-    });
+    try {
+      API.registerHook("taskCreated", async (payload) => {
+        const task = payload && payload.task ? payload.task : payload;
+        await applyRulesToTask(task);
+      });
+      console.log("[AutoTag] Registered hook: taskCreated");
+    } catch (err) {
+      console.warn("[AutoTag] Failed to register hook: taskCreated", err);
+    }
+
+    try {
+      API.registerHook("taskUpdate", async (payload) => {
+        const task = payload && payload.task ? payload.task : payload;
+        const changes = payload && payload.changes;
+        // Only proceed if the title changed (or if we can't tell, which
+        // shouldn't happen in practice).
+        if (changes && !("title" in changes)) return;
+        await applyRulesToTask(task);
+      });
+      console.log("[AutoTag] Registered hook: taskUpdate");
+    } catch (err) {
+      console.warn("[AutoTag] Failed to register hook: taskUpdate", err);
+    }
   }
 
   registerHooks();
